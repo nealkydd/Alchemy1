@@ -71,8 +71,8 @@ body{
 
 .splash-kicker{
   font-family:Cinzel,serif;
-  font-size:12px;letter-spacing:0.48em;
-  color:rgba(216,185,138,0.65);
+  font-size:14px;letter-spacing:0.48em;
+  color:rgba(225,198,150,0.92);
   text-transform:uppercase;
   margin-bottom:26px;
   opacity:0;transform:translateY(6px);
@@ -139,7 +139,7 @@ body{
 .enter-btn::before{
   content:"";
   position:absolute;inset:0;
-  border:1px solid rgba(201,168,106,0.5);
+  border:1.5px solid rgba(201,168,106,0.82);
   transition:border-color 0.5s ease,background 0.5s ease,box-shadow 0.5s ease;
 }
 /* Inner inset line */
@@ -1265,7 +1265,7 @@ const ringRotations={zodiac:300,mode:120,element:270,spindle:270};
 const ELEM_COLOR={
   earth:{base:"#2d6a2d",mid:"#4caf50",hi:"#8bc34a",glow:"rgba(76,175,80,0.6)",name:"Emerald"},
   fire: {base:"#8b0000",mid:"#c0392b",hi:"#e74c3c",glow:"rgba(192,57,43,0.6)",name:"Ruby"},
-  air:  {base:"#1a5276",mid:"#2980b9",hi:"#aed6f1",glow:"rgba(174,214,241,0.6)",name:"Crystal"},
+  air:  {base:"#7a5200",mid:"#c8900a",hi:"#f5c842",glow:"rgba(245,200,66,0.6)",name:"Topaz"},
   water:{base:"#1a3a6b",mid:"#1565c0",hi:"#4fc3f7",glow:"rgba(79,195,247,0.7)",name:"Sapphire"},
 };
 
@@ -1396,7 +1396,7 @@ function buildSVGElementRing(parent){
   const g=svgEl("g",{id:"elementRingGroup",cursor:"grab"});
   g.appendChild(makeAnnulus('rgba(10,8,4,0.65)',R.elementOuter,R.elementInner));
   elementOrder.forEach((el,i)=>{const c=ELEM_COLOR[el];const path=svgEl("path",{d:arcPath(CX,CY,R.elementInner,R.elementOuter,i*90,(i+1)*90),fill:`${c.base}22`,stroke:`${c.mid}66`,"stroke-width":"1"});g.appendChild(path);});
-  const elemAngles={earth:0,fire:90,air:180,water:270};
+  const elemAngles={fire:0,earth:90,water:180,air:270};
   Object.entries(elemAngles).forEach(([el,ang])=>buildSVGGemNode(g,el,ang,R.elementLabel,22));
   for(let i=0;i<4;i++){const ang=i*90;const p1=polarToXY(CX,CY,R.elementInner,ang),p2=polarToXY(CX,CY,R.elementOuter,ang);g.appendChild(svgEl("line",{x1:p1.x,y1:p1.y,x2:p2.x,y2:p2.y,stroke:"rgba(200,160,40,0.45)","stroke-width":"1.5"}));}
   [R.elementOuter,R.elementInner].forEach((r,i)=>g.appendChild(svgEl("circle",{cx:CX,cy:CY,r,fill:"none",stroke:i===0?"url(#brassGrad2)":"url(#brassGrad3)","stroke-width":i===0?3:2})));
@@ -1499,7 +1499,7 @@ function setupRingDrag(groupId,key,snap,isSpindle=false){
 
 function updateSpindleSelection(){
   const norm=((ringRotations.spindle%360)+360)%360;
-  const elemAngles={0:"earth",90:"fire",180:"air",270:"water"};
+  const elemAngles={0:"fire",90:"earth",180:"water",270:"air"};
   const snapped=Math.round(norm/90)*90%360;
   const selected=elemAngles[snapped]||"water";
   if(selected!==state.selectedElement){
