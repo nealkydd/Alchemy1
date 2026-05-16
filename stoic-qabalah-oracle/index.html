@@ -487,16 +487,25 @@ input[type="range"]{width:100%;accent-color:var(--theme);}
   display:grid;place-items:center;
   padding:26px;
 }
-.wheel-svg-wrap{
+.photo-wheel{
   position:relative;
   width:min(88vh,760px);
   aspect-ratio:1;
+  filter:drop-shadow(0 0 40px rgba(216,185,138,0.22)) drop-shadow(0 0 80px rgba(0,0,0,0.7));
+  touch-action:none;
+  user-select:none;
+  cursor:grab;
 }
-#wheelSVG{
+.photo-wheel:active{cursor:grabbing;}
+.pw-layer{
+  position:absolute;inset:0;
   width:100%;height:100%;
-  overflow:visible;
-  filter:drop-shadow(0 0 32px rgba(216,185,138,0.18)) drop-shadow(0 0 80px rgba(0,0,0,0.6));
+  object-fit:contain;
+  pointer-events:none;
+  transform-origin:center center;
+  will-change:transform;
 }
+.pw-mode{overflow:visible;}
 
 /* RESULT BANNER */
 .result-banner{
@@ -1127,7 +1136,14 @@ input[type="range"]{width:100%;accent-color:var(--theme);}
           </div>
         </div>
         <div class="wheel-shell">
-          <div class="wheel-svg-wrap" id="wheelWrap"></div>
+          <div class="photo-wheel" id="photoWheel">
+            <img class="pw-layer" src="assets/wheel-room.png"   alt="">
+            <img class="pw-layer" src="assets/wheel-bg.png"     alt="">
+            <img class="pw-layer" src="assets/wheel-zodiac.png" id="pwZodiac" alt="">
+            <svg class="pw-layer pw-mode" id="pwMode" viewBox="0 0 1000 1000" xmlns="http://www.w3.org/2000/svg"></svg>
+            <img class="pw-layer" src="assets/wheel-gears.png"  id="pwGears"  alt="">
+            <img class="pw-layer" src="assets/wheel-needle.png" id="pwNeedle" alt="">
+          </div>
         </div>
         <div class="result-banner" id="resultBanner">
           <div class="result-symbol" id="resultSymbol">✦</div>
@@ -1258,259 +1274,156 @@ const state={
   selectedElement:"water"
 };
 
-// SVG wheel ring rotations (used by buildWheelSVG)
-const ringRotations={zodiac:300,mode:120,element:270,spindle:270};
+// ═══════════════════════════════════════════════════════
+// PHOTO WHEEL — layered PNG wheel with drag + tick sound
+// ═══════════════════════════════════════════════════════
+const NEEDLE_ELEM={fire:0,earth:90,water:180,air:270};
+const ELEM_NEEDLE={0:"fire",90:"earth",180:"water",270:"air"};
+const WHEEL_MODES=["CARDINAL","FIXED","MUTABLE","CARDINAL","FIXED","MUTABLE","CARDINAL","FIXED","MUTABLE","CARDINAL","FIXED","MUTABLE"];
+const MODE_COLOR={CARDINAL:"#d4a84b",FIXED:"#c8922a",MUTABLE:"#b07838"};
 
-// Element gem colours for SVG wheel
-const ELEM_COLOR={
-  earth:{base:"#2d6a2d",mid:"#4caf50",hi:"#8bc34a",glow:"rgba(76,175,80,0.6)",name:"Emerald"},
-  fire: {base:"#8b0000",mid:"#c0392b",hi:"#e74c3c",glow:"rgba(192,57,43,0.6)",name:"Ruby"},
-  air:  {base:"#7a5200",mid:"#c8900a",hi:"#f5c842",glow:"rgba(245,200,66,0.6)",name:"Topaz"},
-  water:{base:"#1a3a6b",mid:"#1565c0",hi:"#4fc3f7",glow:"rgba(79,195,247,0.7)",name:"Sapphire"},
-};
+const pwState={zodiac:0,needle:0,gears:0};
+let pwDrag=null;
+let _audioCtx=null;
+const TICK_DEG=5, GEAR_Z=-3, GEAR_N=-2;
 
-// SVG wheel constants
-const NS="http://www.w3.org/2000/svg";
-const CX=380,CY=380,SIZE=760;
-const R={outerEdge:368,degScaleOuter:368,degScaleInner:340,brassRim2:338,brassRim1:326,zodiacOuter:320,zodiacInner:270,zodiacLabel:295,modeOuter:266,modeInner:228,modeLabel:247,elementOuter:224,elementInner:172,elementLabel:198,spindleArm:165,coreOuter:138,coreInner:108,innerCore:80,rivet:14};
-
-function svgEl(tag,attrs={}){const el=document.createElementNS(NS,tag);for(const[k,v]of Object.entries(attrs))el.setAttribute(k,v);return el;}
-function polarToXY(cx,cy,r,a){const rad=(a-90)*Math.PI/180;return{x:cx+r*Math.cos(rad),y:cy+r*Math.sin(rad)};}
-function arcPath(cx,cy,r1,r2,s,e){const s1=polarToXY(cx,cy,r1,s),e1=polarToXY(cx,cy,r1,e),s2=polarToXY(cx,cy,r2,e),e2=polarToXY(cx,cy,r2,s);const lg=(e-s)>180?1:0;return`M${s1.x},${s1.y} A${r1},${r1} 0 ${lg},1 ${e1.x},${e1.y} L${s2.x},${s2.y} A${r2},${r2} 0 ${lg},0 ${e2.x},${e2.y} Z`;}
-
-const _annulusMasks={};
-function registerAnnulusMask(defs,rOuter,rInner){
-  const maskId=`amask_${Math.round(rOuter)}_${Math.round(rInner)}`;
-  if(_annulusMasks[maskId])return maskId;
-  const mask=svgEl("mask",{id:maskId});
-  mask.appendChild(svgEl("rect",{x:"0",y:"0",width:String(SIZE),height:String(SIZE),fill:"white"}));
-  mask.appendChild(svgEl("circle",{cx:String(CX),cy:String(CY),r:String(rInner),fill:"black"}));
-  defs.appendChild(mask);_annulusMasks[maskId]=true;return maskId;
-}
-function makeAnnulus(fillColor,rOuter,rInner){
-  const maskId=`amask_${Math.round(rOuter)}_${Math.round(rInner)}`;
-  return svgEl("circle",{cx:String(CX),cy:String(CY),r:String(rOuter),fill:fillColor,mask:`url(#${maskId})`});
-}
-
-function buildSVGDefs(svg){
-  const defs=svgEl("defs");
-  function makeBrassGrad(id,dark,mid,bright){const g=svgEl("linearGradient",{id,x1:"0%",y1:"0%",x2:"100%",y2:"100%"});[[0,dark],[30,bright],[60,mid],[80,bright],[100,dark]].forEach(([pct,col])=>{g.appendChild(svgEl("stop",{"offset":`${pct}%`,"stop-color":col}));});return g;}
-  defs.appendChild(makeBrassGrad("brassGrad1","#3a2d10","#c9a84c","#f0d878"));
-  defs.appendChild(makeBrassGrad("brassGrad2","#2a1e08","#b08828","#e8c85e"));
-  defs.appendChild(makeBrassGrad("brassGrad3","#1c1408","#886418","#d4a832"));
-  const ob=svgEl("radialGradient",{id:"outerBrassGrad",cx:"50%",cy:"50%",r:"50%"});
-  [["0%","#1a1208"],["40%","#3a2a0e"],["60%","#b08020"],["70%","#f0d060"],["80%","#c89828"],["90%","#8a6010"],["100%","#2a1a06"]].forEach(([o,c])=>ob.appendChild(svgEl("stop",{offset:o,"stop-color":c})));
-  defs.appendChild(ob);
-  const zg=svgEl("radialGradient",{id:"zodGrad",cx:"50%",cy:"50%",r:"50%"});
-  [["0%","#100e08"],["55%","#221a0a"],["70%","#3a2d12"],["85%","#2a2010"],["100%","#181008"]].forEach(([o,c])=>zg.appendChild(svgEl("stop",{offset:o,"stop-color":c})));
-  defs.appendChild(zg);
-  const mg=svgEl("radialGradient",{id:"modeGrad",cx:"50%",cy:"50%",r:"50%"});
-  [["0%","#0c0a08"],["60%","#1e1808"],["80%","#2e2410"],["100%","#120e06"]].forEach(([o,c])=>mg.appendChild(svgEl("stop",{offset:o,"stop-color":c})));
-  defs.appendChild(mg);
-  const eg=svgEl("radialGradient",{id:"elemGrad",cx:"50%",cy:"50%",r:"50%"});
-  [["0%","#0a0806"],["60%","#1a1408"],["80%","#281e0c"],["100%","#0e0a06"]].forEach(([o,c])=>eg.appendChild(svgEl("stop",{offset:o,"stop-color":c})));
-  defs.appendChild(eg);
-  const cg=svgEl("radialGradient",{id:"coreGlow",cx:"50%",cy:"50%",r:"50%"});
-  [["0%","#f0e0a0"],["30%","#c89828"],["60%","#2a1e0c"],["100%","#0c0a06"]].forEach(([o,c])=>cg.appendChild(svgEl("stop",{offset:o,"stop-color":c})));
-  defs.appendChild(cg);
-  const rg=svgEl("radialGradient",{id:"rivetGrad",cx:"35%",cy:"30%",r:"65%"});
-  [["0%","#fff8e0"],["25%","#f0c830"],["55%","#c89010"],["80%","#8a6008"],["100%","#3a2804"]].forEach(([o,c])=>rg.appendChild(svgEl("stop",{offset:o,"stop-color":c})));
-  defs.appendChild(rg);
-  Object.entries(ELEM_COLOR).forEach(([el,c])=>{
-    const g=svgEl("radialGradient",{id:`gem_${el}`,cx:"35%",cy:"30%",r:"65%"});
-    [["0%","#fff8f0"],["15%",c.hi],["40%",c.mid],["70%",c.base],["100%","#050304"]].forEach(([o,col])=>g.appendChild(svgEl("stop",{offset:o,"stop-color":col})));
-    defs.appendChild(g);
-    const filt=svgEl("filter",{id:`gemGlow_${el}`,x:"-50%",y:"-50%",width:"200%",height:"200%"});
-    filt.appendChild(svgEl("feGaussianBlur",{stdDeviation:"4","result":"blur"}));
-    filt.appendChild(svgEl("feComposite",{in:"SourceGraphic",in2:"blur",operator:"over"}));
-    defs.appendChild(filt);
+function buildModeRing(svg){
+  const NS="http://www.w3.org/2000/svg";
+  const R=455,CX=500,CY=500;
+  WHEEL_MODES.forEach((mode,i)=>{
+    const mid=i*30+15;
+    const rad=(mid-90)*Math.PI/180;
+    const x=CX+R*Math.cos(rad), y=CY+R*Math.sin(rad);
+    const t=document.createElementNS(NS,"text");
+    t.setAttribute("x",x); t.setAttribute("y",y);
+    t.setAttribute("text-anchor","middle");
+    t.setAttribute("dominant-baseline","middle");
+    t.setAttribute("font-size","22");
+    t.setAttribute("font-family","Cinzel,serif");
+    t.setAttribute("fill",MODE_COLOR[mode]);
+    t.setAttribute("letter-spacing","2");
+    t.setAttribute("transform",`rotate(${mid},${x},${y})`);
+    t.textContent=mode;
+    svg.appendChild(t);
   });
-  const sf=svgEl("filter",{id:"dropShadow",x:"-5%",y:"-5%",width:"110%",height:"110%"});
-  sf.appendChild(svgEl("feDropShadow",{dx:"0",dy:"1",stdDeviation:"2","flood-color":"rgba(0,0,0,0.7)"}));
-  defs.appendChild(sf);
-  const gf=svgEl("filter",{id:"glowFilter",x:"-40%",y:"-40%",width:"180%",height:"180%"});
-  gf.appendChild(svgEl("feGaussianBlur",{in:"SourceGraphic",stdDeviation:"6","result":"blur"}));
-  gf.appendChild(svgEl("feComposite",{in:"SourceGraphic",in2:"blur",operator:"over"}));
-  defs.appendChild(gf);
-  registerAnnulusMask(defs,R.outerEdge,R.brassRim1);
-  registerAnnulusMask(defs,R.zodiacOuter,R.zodiacInner);
-  registerAnnulusMask(defs,R.modeOuter,R.modeInner);
-  registerAnnulusMask(defs,R.elementOuter,R.elementInner);
-  svg.appendChild(defs);
 }
 
-function buildSVGDegreeRing(parent){
-  const g=svgEl("g",{id:"degreeRingGroup"});
-  g.appendChild(makeAnnulus('rgba(10,8,3,0.78)',R.outerEdge,R.brassRim1));
-  g.appendChild(svgEl("circle",{cx:CX,cy:CY,r:R.outerEdge,fill:"none",stroke:"url(#brassGrad1)","stroke-width":"6"}));
-  for(let deg=0;deg<360;deg++){
-    const isMajor=deg%30===0,isMid=deg%10===0&&!isMajor,isMinor=deg%5===0&&!isMajor&&!isMid;
-    if(!isMajor&&!isMid&&!isMinor)continue;
-    const tickLen=isMajor?20:(isMid?13:7);
-    const p1=polarToXY(CX,CY,R.degScaleOuter-1,deg),p2=polarToXY(CX,CY,R.degScaleOuter-1-tickLen,deg);
-    const opacity=isMajor?1:(isMid?0.7:0.4);
-    const stroke=isMajor?"#f0d060":(isMid?"#c8a030":"#8a6810");
-    const sw=isMajor?1.8:(isMid?1.2:0.8);
-    g.appendChild(svgEl("line",{x1:p1.x,y1:p1.y,x2:p2.x,y2:p2.y,stroke,"stroke-width":sw,opacity}));
-    if(isMajor){const lp=polarToXY(CX,CY,R.degScaleOuter-1-tickLen-12,deg);const txt=svgEl("text",{x:lp.x,y:lp.y,"text-anchor":"middle","dominant-baseline":"middle","font-family":"Cinzel, serif","font-size":"11",fill:"#f0d878","letter-spacing":"0.5",transform:`rotate(${deg},${lp.x},${lp.y})`});txt.textContent=`${deg}°`;g.appendChild(txt);}
+function pwGetAngle(e,el){
+  const r=el.getBoundingClientRect();
+  const cx=r.left+r.width/2, cy=r.top+r.height/2;
+  const px=(e.touches?e.touches[0].clientX:e.clientX)-cx;
+  const py=(e.touches?e.touches[0].clientY:e.clientY)-cy;
+  return Math.atan2(py,px)*180/Math.PI;
+}
+function pwGetRadius(e,el){
+  const r=el.getBoundingClientRect();
+  const cx=r.left+r.width/2, cy=r.top+r.height/2;
+  const px=(e.touches?e.touches[0].clientX:e.clientX)-cx;
+  const py=(e.touches?e.touches[0].clientY:e.clientY)-cy;
+  return Math.sqrt(px*px+py*py)/(r.width/2);
+}
+
+function pwApply(){
+  document.getElementById("pwZodiac").style.transform=`rotate(${pwState.zodiac}deg)`;
+  document.getElementById("pwMode").style.transform=`rotate(${pwState.zodiac}deg)`;
+  document.getElementById("pwGears").style.transform=`rotate(${pwState.gears}deg)`;
+  document.getElementById("pwNeedle").style.transform=`rotate(${pwState.needle}deg)`;
+}
+
+function playTick(){
+  try{
+    if(!_audioCtx) _audioCtx=new(window.AudioContext||window.webkitAudioContext)();
+    const ctx=_audioCtx, len=Math.floor(ctx.sampleRate*0.018);
+    const buf=ctx.createBuffer(1,len,ctx.sampleRate);
+    const d=buf.getChannelData(0);
+    for(let i=0;i<len;i++) d[i]=(Math.random()*2-1)*Math.exp(-i/(ctx.sampleRate*0.003));
+    const src=ctx.createBufferSource(); src.buffer=buf;
+    const g=ctx.createGain(); g.gain.value=0.45;
+    src.connect(g); g.connect(ctx.destination); src.start();
+  }catch(e){}
+}
+
+function pwSnapNeedle(){
+  const norm=((pwState.needle%360)+360)%360;
+  const snapped=Math.round(norm/90)*90%360;
+  pwState.needle=snapped;
+  const elem=ELEM_NEEDLE[snapped]||"fire";
+  if(elem!==state.selectedElement){
+    state.selectedElement=elem;
+    setActiveElement(elem);
   }
-  g.appendChild(svgEl("circle",{cx:CX,cy:CY,r:R.brassRim1,fill:"none",stroke:"url(#brassGrad2)","stroke-width":"4",opacity:"0.85"}));
-  g.appendChild(svgEl("circle",{cx:CX,cy:CY,r:R.brassRim2,fill:"none",stroke:"url(#brassGrad1)","stroke-width":"3",opacity:"0.6"}));
-  parent.appendChild(g);
+  pwApply();
 }
 
-function buildSVGZodiacRing(parent){
-  const g=svgEl("g",{id:"zodiacRingGroup",cursor:"grab"});
-  g.appendChild(makeAnnulus('rgba(14,11,5,0.75)',R.zodiacOuter,R.zodiacInner));
-  const zodiacSigns2=["Aries","Taurus","Gemini","Cancer","Leo","Virgo","Libra","Scorpio","Sagittarius","Capricorn","Aquarius","Pisces"];
-  const zodiacGlyphs2=["♈","♉","♊","♋","♌","♍","♎","♏","♐","♑","♒","♓"];
-  for(let i=0;i<12;i++){const angle=i*30;const p1=polarToXY(CX,CY,R.zodiacInner,angle),p2=polarToXY(CX,CY,R.zodiacOuter,angle);g.appendChild(svgEl("line",{x1:p1.x,y1:p1.y,x2:p2.x,y2:p2.y,stroke:"rgba(200,160,40,0.5)","stroke-width":"1"}));}
-  zodiacGlyphs2.forEach((glyph,i)=>{
-    const angle=i*30+15,p=polarToXY(CX,CY,R.zodiacLabel,angle);
-    const txt=svgEl("text",{x:p.x,y:p.y,"text-anchor":"middle","dominant-baseline":"middle","font-size":"22",fill:"#e8d080","font-family":"serif"});
-    txt.textContent=glyph;g.appendChild(txt);
-    const p2=polarToXY(CX,CY,R.zodiacLabel-18,angle);
-    const lbl=svgEl("text",{x:p2.x,y:p2.y,"text-anchor":"middle","dominant-baseline":"middle","font-size":"7.5","font-family":"Cinzel,serif",fill:"rgba(200,170,80,0.75)","letter-spacing":"0.5",transform:`rotate(${angle},${p2.x},${p2.y})`});
-    lbl.textContent=zodiacSigns2[i].toUpperCase();g.appendChild(lbl);
-  });
-  [R.zodiacOuter,R.zodiacInner].forEach((r,i)=>g.appendChild(svgEl("circle",{cx:CX,cy:CY,r,fill:"none",stroke:i===0?"url(#brassGrad2)":"url(#brassGrad3)","stroke-width":i===0?3:2})));
-  for(let i=0;i<48;i++){const ang=i*(360/48);const p1=polarToXY(CX,CY,R.zodiacInner+1,ang),p2=polarToXY(CX,CY,R.zodiacInner+6,ang);g.appendChild(svgEl("line",{x1:p1.x,y1:p1.y,x2:p2.x,y2:p2.y,stroke:"rgba(200,160,40,0.25)","stroke-width":"0.8"}));}
-  parent.appendChild(g);return g;
+function selectElementOnWheel(elem){
+  const target=NEEDLE_ELEM[elem]||0;
+  const norm=((pwState.needle%360)+360)%360;
+  let diff=target-norm;
+  if(diff>180) diff-=360;
+  if(diff<-180) diff+=360;
+  const from=pwState.needle, to=from+diff;
+  const t0=performance.now(), dur=900;
+  function step(now){
+    const p=Math.min((now-t0)/dur,1);
+    const e=p<0.5?2*p*p:-1+(4-2*p)*p;
+    pwState.needle=from+diff*e;
+    pwApply();
+    if(p<1) requestAnimationFrame(step);
+    else{pwState.needle=to;pwApply();}
+  }
+  requestAnimationFrame(step);
 }
 
-function buildSVGModeRing(parent){
-  const g=svgEl("g",{id:"modeRingGroup",cursor:"grab"});
-  g.appendChild(makeAnnulus('rgba(12,10,5,0.70)',R.modeOuter,R.modeInner));
-  const modeColors=["rgba(160,120,200,0.12)","rgba(200,160,60,0.12)","rgba(80,160,120,0.12)"];
-  for(let i=0;i<3;i++){g.appendChild(svgEl("path",{d:arcPath(CX,CY,R.modeInner,R.modeOuter,i*120,(i+1)*120),fill:modeColors[i],stroke:"rgba(200,160,40,0.3)","stroke-width":"1"}));}
-  ["Cardinal","Fixed","Mutable"].forEach((mode,i)=>{
-    const angle=i*120+60,p=polarToXY(CX,CY,R.modeLabel,angle);
-    const txt=svgEl("text",{x:p.x,y:p.y,"text-anchor":"middle","dominant-baseline":"middle","font-family":"Cinzel,serif","font-size":"11",fill:"#c8a840","letter-spacing":"1.5",transform:`rotate(${angle},${p.x},${p.y})`});
-    txt.textContent=mode.toUpperCase();g.appendChild(txt);
-  });
-  [R.modeOuter,R.modeInner].forEach((r,i)=>g.appendChild(svgEl("circle",{cx:CX,cy:CY,r,fill:"none",stroke:i===0?"url(#brassGrad2)":"url(#brassGrad3)","stroke-width":i===0?3:2})));
-  parent.appendChild(g);return g;
-}
+function initPhotoWheel(){
+  const wheel=document.getElementById("photoWheel");
+  if(!wheel||wheel.dataset.init) return;
+  wheel.dataset.init="1";
+  buildModeRing(document.getElementById("pwMode"));
+  pwState.needle=NEEDLE_ELEM[state.selectedElement]||0;
+  pwApply();
 
-function buildSVGElementRing(parent){
-  const g=svgEl("g",{id:"elementRingGroup",cursor:"grab"});
-  g.appendChild(makeAnnulus('rgba(10,8,4,0.65)',R.elementOuter,R.elementInner));
-  elementOrder.forEach((el,i)=>{const c=ELEM_COLOR[el];const path=svgEl("path",{d:arcPath(CX,CY,R.elementInner,R.elementOuter,i*90,(i+1)*90),fill:`${c.base}22`,stroke:`${c.mid}66`,"stroke-width":"1"});g.appendChild(path);});
-  const elemAngles={fire:0,earth:90,water:180,air:270};
-  Object.entries(elemAngles).forEach(([el,ang])=>buildSVGGemNode(g,el,ang,R.elementLabel,22));
-  for(let i=0;i<4;i++){const ang=i*90;const p1=polarToXY(CX,CY,R.elementInner,ang),p2=polarToXY(CX,CY,R.elementOuter,ang);g.appendChild(svgEl("line",{x1:p1.x,y1:p1.y,x2:p2.x,y2:p2.y,stroke:"rgba(200,160,40,0.45)","stroke-width":"1.5"}));}
-  [R.elementOuter,R.elementInner].forEach((r,i)=>g.appendChild(svgEl("circle",{cx:CX,cy:CY,r,fill:"none",stroke:i===0?"url(#brassGrad2)":"url(#brassGrad3)","stroke-width":i===0?3:2})));
-  parent.appendChild(g);return g;
-}
-
-function buildSVGGemNode(parent,el,angleDeg,radius,gemR){
-  const c=ELEM_COLOR[el],p=polarToXY(CX,CY,radius,angleDeg),g=svgEl("g",{"data-el":el});
-  g.appendChild(svgEl("circle",{cx:p.x,cy:p.y,r:gemR+10,fill:"none",stroke:c.mid,"stroke-width":"2",opacity:"0.3"}));
-  g.appendChild(svgEl("circle",{cx:p.x,cy:p.y,r:gemR+5,fill:"url(#rivetGrad)",stroke:"#c89028","stroke-width":"2"}));
-  g.appendChild(svgEl("circle",{cx:p.x,cy:p.y,r:gemR,fill:`url(#gem_${el})`,stroke:c.hi,"stroke-width":"1.5"}));
-  g.appendChild(svgEl("line",{x1:p.x-gemR*0.3,y1:p.y-gemR*0.5,x2:p.x+gemR*0.1,y2:p.y-gemR*0.1,stroke:"rgba(255,255,255,0.4)","stroke-width":"1","stroke-linecap":"round"}));
-  g.appendChild(svgEl("ellipse",{cx:p.x-gemR*0.3,cy:p.y-gemR*0.35,rx:"3",ry:"2",fill:"rgba(255,255,255,0.6)",transform:`rotate(${angleDeg+30},${p.x-gemR*0.3},${p.y-gemR*0.35})`}));
-  const elementGlyphMap={earth:"🜃",fire:"🜂",air:"🜁",water:"🜄"};
-  const sym=svgEl("text",{x:p.x,y:p.y+1,"text-anchor":"middle","dominant-baseline":"middle","font-size":gemR*0.9,"font-family":"serif",fill:c.hi,opacity:"0.9"});
-  sym.textContent=elementGlyphMap[el];g.appendChild(sym);
-  parent.appendChild(g);return g;
-}
-
-function buildSVGSpindle(parent){
-  const g=svgEl("g",{id:"spindleGroup",cursor:"grab"});
-  const armLen=R.spindleArm-10;
-  g.appendChild(svgEl("polygon",{points:`${CX-5},${CY}  ${CX+5},${CY}  ${CX+1.5},${CY-armLen}  ${CX-1.5},${CY-armLen}`,fill:"url(#brassGrad1)",stroke:"#c89028","stroke-width":"0.8",opacity:"0.95"}));
-  [0.35,0.6,0.8].forEach(frac=>{const y=CY-armLen*frac,hw=5+(1.5-5)*frac+4;g.appendChild(svgEl("line",{x1:CX-hw,y1:y,x2:CX+hw,y2:y,stroke:"#f0d060","stroke-width":"1.2",opacity:"0.55"}));});
-  const ty=CY-armLen;
-  g.appendChild(svgEl("polygon",{points:`${CX},${ty-10}  ${CX+5},${ty}  ${CX},${ty+6}  ${CX-5},${ty}`,fill:"#f0d878",stroke:"#c89020","stroke-width":"1"}));
-  g.appendChild(svgEl("line",{x1:CX,y1:CY,x2:CX,y2:CY+32,stroke:"#c8a030","stroke-width":"3","stroke-linecap":"round",opacity:"0.8"}));
-  g.appendChild(svgEl("circle",{cx:CX,cy:CY+32,r:4,fill:"url(#rivetGrad)",stroke:"#c89020","stroke-width":"1"}));
-  parent.appendChild(g);return g;
-}
-
-function buildSVGCore(parent){
-  const g=svgEl("g",{id:"coreSealGroup",cursor:"pointer"});
-  g.appendChild(svgEl("circle",{cx:CX,cy:CY,r:R.coreOuter+16,fill:"none",stroke:"rgba(216,185,138,0.15)","stroke-width":"8"}));
-  g.appendChild(svgEl("circle",{cx:CX,cy:CY,r:R.coreOuter+8,fill:"none",stroke:"rgba(216,185,138,0.25)","stroke-width":"3"}));
-  g.appendChild(svgEl("circle",{cx:CX,cy:CY,r:R.coreOuter,fill:"url(#coreGlow)",stroke:"url(#brassGrad1)","stroke-width":"4",filter:"url(#dropShadow)"}));
-  g.appendChild(svgEl("circle",{cx:CX,cy:CY,r:R.coreInner,fill:"none",stroke:"rgba(240,216,120,0.5)","stroke-width":"1.5"}));
-  g.appendChild(svgEl("circle",{cx:CX,cy:CY,r:R.innerCore,fill:"none",stroke:"rgba(240,216,120,0.3)","stroke-width":"1"}));
-  const hexPts=(r,offset=0)=>Array.from({length:6},(_,i)=>{const p=polarToXY(CX,CY,r,i*60+offset);return`${p.x},${p.y}`;}).join(" ");
-  g.appendChild(svgEl("polygon",{points:hexPts(70,0),fill:"none",stroke:"rgba(240,210,100,0.25)","stroke-width":"1"}));
-  g.appendChild(svgEl("polygon",{points:hexPts(70,60),fill:"none",stroke:"rgba(240,210,100,0.25)","stroke-width":"1"}));
-  const pentR=52;for(let i=0;i<5;i++){const a1=i*72-90,a2=((i+2)%5)*72-90;const p1=polarToXY(CX,CY,pentR,a1),p2=polarToXY(CX,CY,pentR,a2);g.appendChild(svgEl("line",{x1:p1.x,y1:p1.y,x2:p2.x,y2:p2.y,stroke:"rgba(200,180,100,0.2)","stroke-width":"0.8"}));}
-  const centralSym=svgEl("text",{id:"centralSymbol",x:CX,y:CY+6,"text-anchor":"middle","dominant-baseline":"middle","font-size":"52","font-family":"Cormorant Garamond,serif",fill:"#f2e0b0",filter:"url(#glowFilter)",opacity:"0.92",cursor:"pointer"});
-  centralSym.textContent="✷";g.appendChild(centralSym);
-  const lbl=svgEl("text",{x:CX,y:CY+R.coreOuter-16,"text-anchor":"middle","font-size":"8","font-family":"Cinzel,serif",fill:"rgba(200,170,80,0.6)","letter-spacing":"3"});
-  lbl.textContent="CENTRAL SEAL";g.appendChild(lbl);
-  g.appendChild(svgEl("circle",{cx:CX,cy:CY,r:R.rivet+4,fill:"#4a3010",stroke:"url(#brassGrad1)","stroke-width":"2"}));
-  g.appendChild(svgEl("circle",{cx:CX,cy:CY,r:R.rivet,fill:"url(#rivetGrad)",stroke:"#f0d060","stroke-width":"1.5",filter:"url(#dropShadow)"}));
-  g.appendChild(svgEl("circle",{cx:CX-4,cy:CY-4,r:3,fill:"rgba(255,255,255,0.5)"}));
-  parent.appendChild(g);return g;
-}
-
-function buildSVGPointer(parent){
-  const g=svgEl("g",{id:"pointerGroup",style:"pointer-events:none"});
-  const py=CY-R.outerEdge-14;
-  g.appendChild(svgEl("polygon",{points:`${CX},${py+20} ${CX-10},${py+38} ${CX+10},${py+38}`,fill:"#f2e8c0",stroke:"rgba(240,216,120,0.7)","stroke-width":"1",filter:"url(#glowFilter)"}));
-  g.appendChild(svgEl("circle",{cx:CX,cy:py+26,r:3,fill:"#f0d060"}));
-  parent.appendChild(g);
+  function onDown(e){
+    const nr=pwGetRadius(e,wheel);
+    if(nr>0.92) return;
+    const type=nr<0.38?"needle":"zodiac";
+    const ma=pwGetAngle(e,wheel);
+    pwDrag={type, offset:ma-(type==="needle"?pwState.needle:pwState.zodiac), lastTickAngle:ma};
+    e.preventDefault();
+  }
+  function onMove(e){
+    if(!pwDrag) return;
+    const ma=pwGetAngle(e,wheel);
+    const newAngle=ma-pwDrag.offset;
+    const prev=pwDrag.type==="needle"?pwState.needle:pwState.zodiac;
+    const delta=newAngle-prev;
+    if(pwDrag.type==="zodiac"){
+      pwState.zodiac=newAngle;
+      pwState.gears+=delta*GEAR_Z;
+    } else {
+      pwState.needle=newAngle;
+      pwState.gears+=delta*GEAR_N;
+    }
+    pwApply();
+    const stepped=Math.floor(Math.abs(newAngle)/TICK_DEG);
+    const prevStepped=Math.floor(Math.abs(pwDrag.lastTickAngle)/TICK_DEG);
+    if(stepped!==prevStepped) playTick();
+    pwDrag.lastTickAngle=newAngle;
+    e.preventDefault();
+  }
+  function onUp(){
+    if(!pwDrag) return;
+    if(pwDrag.type==="needle") pwSnapNeedle();
+    pwDrag=null;
+  }
+  wheel.addEventListener("mousedown",onDown);
+  wheel.addEventListener("touchstart",onDown,{passive:false});
+  window.addEventListener("mousemove",onMove);
+  window.addEventListener("touchmove",onMove,{passive:false});
+  window.addEventListener("mouseup",onUp);
+  window.addEventListener("touchend",onUp);
 }
 
 let zodiacSVGGroup,modeSVGGroup,elementSVGGroup,spindleSVGGroup;
-
-function buildWheelSVG(){
-  const wrap=document.getElementById("wheelWrap");
-  if(!wrap||wrap.querySelector("svg"))return;
-  const svg=svgEl("svg",{id:"wheelSVG",viewBox:`0 0 ${SIZE} ${SIZE}`,xmlns:NS,style:"touch-action:none;user-select:none"});
-  buildSVGDefs(svg);
-  buildSVGDegreeRing(svg);
-  zodiacSVGGroup=svgEl("g",{id:"zodiacRotGroup",transform:`rotate(${ringRotations.zodiac},${CX},${CY})`});
-  buildSVGZodiacRing(zodiacSVGGroup);svg.appendChild(zodiacSVGGroup);
-  modeSVGGroup=svgEl("g",{id:"modeRotGroup",transform:`rotate(${ringRotations.mode},${CX},${CY})`});
-  buildSVGModeRing(modeSVGGroup);svg.appendChild(modeSVGGroup);
-  elementSVGGroup=svgEl("g",{id:"elementRotGroup",transform:`rotate(${ringRotations.element},${CX},${CY})`});
-  buildSVGElementRing(elementSVGGroup);svg.appendChild(elementSVGGroup);
-  spindleSVGGroup=svgEl("g",{id:"spindleRotGroup",transform:`rotate(${ringRotations.spindle},${CX},${CY})`});
-  buildSVGSpindle(spindleSVGGroup);svg.appendChild(spindleSVGGroup);
-  buildSVGCore(svg);
-  buildSVGPointer(svg);
-  wrap.appendChild(svg);
-  setupRingDrag("zodiacRotGroup","zodiac",30);
-  setupRingDrag("modeRotGroup","mode",120);
-  setupRingDrag("elementRotGroup","element",90);
-  setupRingDrag("spindleRotGroup","spindle",90,true);
-  document.getElementById("coreSealGroup").addEventListener("click",()=>{
-    const s=["You are the conscious alchemist.","Balance is living motion.","The elements are always speaking.","Every transformation begins with awareness.","The centre reveals what the edges conceal."];
-    alert("✦  "+s[Math.floor(Math.random()*s.length)]);
-  });
-}
-
-function setupRingDrag(groupId,key,snap,isSpindle=false){
-  const el=document.getElementById(groupId);
-  let dragging=false,startAngle=0,startRot=0;
-  const svgElem=document.getElementById("wheelSVG");
-  function getSVGCenter(){const rect=svgElem.getBoundingClientRect();return{scaleX:SIZE/rect.width,scaleY:SIZE/rect.height,rect};}
-  function pointerAngle(e){const{rect,scaleX,scaleY}=getSVGCenter();const px=(e.clientX-rect.left)*scaleX;const py=(e.clientY-rect.top)*scaleY;return Math.atan2(py-CY,px-CX)*180/Math.PI+90;}
-  el.addEventListener("pointerdown",e=>{dragging=true;el.setPointerCapture(e.pointerId);el.style.cursor="grabbing";startAngle=pointerAngle(e);startRot=ringRotations[key];e.stopPropagation();});
-  window.addEventListener("pointermove",e=>{if(!dragging)return;const ang=pointerAngle(e);const delta=ang-startAngle;ringRotations[key]=startRot+delta;el.setAttribute("transform",`rotate(${ringRotations[key]},${CX},${CY})`);if(isSpindle)updateSpindleSelection();updateSession();});
-  window.addEventListener("pointerup",e=>{if(!dragging)return;dragging=false;el.style.cursor="grab";ringRotations[key]=Math.round(ringRotations[key]/snap)*snap;el.setAttribute("transform",`rotate(${ringRotations[key]},${CX},${CY})`);if(isSpindle)updateSpindleSelection();updateSession();});
-}
-
-function updateSpindleSelection(){
-  const norm=((ringRotations.spindle%360)+360)%360;
-  const elemAngles={0:"fire",90:"earth",180:"water",270:"air"};
-  const snapped=Math.round(norm/90)*90%360;
-  const selected=elemAngles[snapped]||"water";
-  if(selected!==state.selectedElement){
-    state.selectedElement=selected;
-    const cs=document.getElementById("centralSymbol");
-    if(cs){cs.textContent={earth:"🜃",fire:"🜂",air:"🜁",water:"🜄"}[selected];cs.style.fill=ELEM_COLOR[selected].hi;}
-    document.getElementById("app").classList.remove("glow-earth","glow-fire","glow-air","glow-water");
-    document.getElementById("app").classList.add(`glow-${selected}`);
-    setActiveElement(selected);
-  }
-}
 
 const $ = id => document.getElementById(id);
 
@@ -1541,7 +1454,7 @@ const $ = id => document.getElementById(id);
 $("enterBtn").addEventListener("click",()=>{
   $("splash").classList.add("hidden");
   $("app").classList.add("visible");
-  setTimeout(()=>{ buildWheelSVG(); updateSession(); }, 80);
+  setTimeout(()=>{ initPhotoWheel(); updateSession(); }, 80);
 });
 
 // ---- SPARKS ----
@@ -1575,10 +1488,9 @@ function getCrownIndex(rotation,step,count){
 }
 
 function getCurrentAlignment(){
-  const zi=getCrownIndex(ringRotations.zodiac,30,12);
-  const mi=getCrownIndex(ringRotations.mode,120,3);
-  const ei=getCrownIndex(ringRotations.element,90,4);
-  return{sign:zodiacSigns[zi],signGlyph:zodiacGlyphs[zi],mode:modes[mi],elementAtCrown:elementOrder[ei]};
+  const zi=getCrownIndex(pwState.zodiac,30,12);
+  const mi=zi%3;
+  return{sign:zodiacSigns[zi],signGlyph:zodiacGlyphs[zi],mode:modes[mi],elementAtCrown:state.selectedElement};
 }
 
 function dominantPair(){return Object.entries(state.proportions).sort((a,b)=>b[1]-a[1]);}
@@ -1648,10 +1560,9 @@ function transmute(){
   $("outputTitle").textContent=`${ASSETS[top[0]].name} & ${ASSETS[second[0]].name} Fusion`;
   $("outputCopy").textContent=fusion.text;
   $("outputMeta").textContent=`Crown: ${alignment.mode} ${alignment.sign} • Dominant: ${ASSETS[top[0]].name}`;
-  const coreG=document.getElementById("coreSealGroup");
-  if(coreG){coreG.style.transition="transform 0.3s ease";coreG.style.transform="scale(1.06)";coreG.style.transformOrigin=`${CX}px ${CY}px`;setTimeout(()=>{coreG.style.transform="scale(1)"},400);}
-  const cs=document.getElementById("centralSymbol");
-  if(cs){cs.textContent=fusion.symbol;cs.style.fill="#f2e0b0";}
+  // pulse needle on transmute
+  const needle=document.getElementById("pwNeedle");
+  if(needle){needle.style.transition="transform 0.15s ease,filter 0.3s ease";needle.style.filter="brightness(1.6) drop-shadow(0 0 12px gold)";setTimeout(()=>{needle.style.filter="";},400);}
   setTimeout(()=>$("resultBanner").classList.remove("show"),9000);
   updateSession();
 }
