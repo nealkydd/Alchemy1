@@ -449,12 +449,12 @@ input[type="range"]{width:100%;accent-color:var(--theme);}
 .lab-stage{
   position:relative;min-height:0;
   border-radius:20px;
-  border:1px solid rgba(216,185,138,0.2);
+  border:1px solid rgba(216,185,138,0.28);
   background:
-    radial-gradient(circle at 50% 44%,rgba(216,185,138,0.09),transparent 30%),
-    linear-gradient(180deg,rgba(10,9,8,0.55),rgba(10,9,8,0.38));
-  backdrop-filter:blur(10px);
-  box-shadow:var(--shadow);
+    radial-gradient(circle at 50% 44%,rgba(216,185,138,0.07),transparent 38%),
+    linear-gradient(180deg,rgba(5,4,3,0.70) 0%,rgba(5,4,3,0.52) 40%,rgba(5,4,3,0.62) 100%),
+    url('assets/lab-bg.jpg') center center / cover no-repeat;
+  box-shadow:var(--shadow), 0 0 0 1px rgba(216,185,138,0.08) inset;
   overflow:hidden;
 }
 .stage-header{
