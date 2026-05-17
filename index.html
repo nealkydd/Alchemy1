@@ -504,11 +504,8 @@ input[type="range"]{width:100%;accent-color:var(--theme);}
   pointer-events:none;
   transform-origin:center center;
   will-change:transform;
-  mix-blend-mode:screen;
 }
-.pw-mode{overflow:visible;mix-blend-mode:normal;}
-/* Room: foundation, no blend */
-#pwRoom{mix-blend-mode:normal;}
+.pw-mode{overflow:visible;}
 /* Teal base plate: 72% — sits inside zodiac ring */
 #pwBg{transform:scale(0.72);}
 /* Zodiac ring: full size outer ring */
@@ -1148,7 +1145,6 @@ input[type="range"]{width:100%;accent-color:var(--theme);}
         </div>
         <div class="wheel-shell">
           <div class="photo-wheel" id="photoWheel">
-            <img class="pw-layer" id="pwRoom"   src="assets/wheel-room.png"   alt="">
             <img class="pw-layer" id="pwBg"     src="assets/wheel-bg.png"     alt="">
             <img class="pw-layer" id="pwZodiac" src="assets/wheel-zodiac.png" alt="">
             <svg class="pw-layer pw-mode" id="pwMode" viewBox="0 0 1000 1000" xmlns="http://www.w3.org/2000/svg"></svg>
