@@ -504,8 +504,19 @@ input[type="range"]{width:100%;accent-color:var(--theme);}
   pointer-events:none;
   transform-origin:center center;
   will-change:transform;
+  mix-blend-mode:screen;
 }
-.pw-mode{overflow:visible;}
+.pw-mode{overflow:visible;mix-blend-mode:normal;}
+/* Room: foundation, no blend */
+#pwRoom{mix-blend-mode:normal;}
+/* Teal base plate: 72% — sits inside zodiac ring */
+#pwBg{transform:scale(0.72);}
+/* Zodiac ring: full size outer ring */
+#pwZodiac{transform:scale(1.0);}
+/* Gears: 69% — fills inside of zodiac */
+#pwGears{transform:scale(0.69);}
+/* Needle: 46% — compass star centred over gears */
+#pwNeedle{transform:scale(0.46);}
 
 /* RESULT BANNER */
 .result-banner{
@@ -1137,12 +1148,12 @@ input[type="range"]{width:100%;accent-color:var(--theme);}
         </div>
         <div class="wheel-shell">
           <div class="photo-wheel" id="photoWheel">
-            <img class="pw-layer" src="assets/wheel-room.png"   alt="">
-            <img class="pw-layer" src="assets/wheel-bg.png"     alt="">
-            <img class="pw-layer" src="assets/wheel-zodiac.png" id="pwZodiac" alt="">
+            <img class="pw-layer" id="pwRoom"   src="assets/wheel-room.png"   alt="">
+            <img class="pw-layer" id="pwBg"     src="assets/wheel-bg.png"     alt="">
+            <img class="pw-layer" id="pwZodiac" src="assets/wheel-zodiac.png" alt="">
             <svg class="pw-layer pw-mode" id="pwMode" viewBox="0 0 1000 1000" xmlns="http://www.w3.org/2000/svg"></svg>
-            <img class="pw-layer" src="assets/wheel-gears.png"  id="pwGears"  alt="">
-            <img class="pw-layer" src="assets/wheel-needle.png" id="pwNeedle" alt="">
+            <img class="pw-layer" id="pwGears"  src="assets/wheel-gears.png"  alt="">
+            <img class="pw-layer" id="pwNeedle" src="assets/wheel-needle.png" alt="">
           </div>
         </div>
         <div class="result-banner" id="resultBanner">
@@ -1324,10 +1335,10 @@ function pwGetRadius(e,el){
 }
 
 function pwApply(){
-  document.getElementById("pwZodiac").style.transform=`rotate(${pwState.zodiac}deg)`;
+  document.getElementById("pwZodiac").style.transform=`rotate(${pwState.zodiac}deg) scale(1.0)`;
   document.getElementById("pwMode").style.transform=`rotate(${pwState.zodiac}deg)`;
-  document.getElementById("pwGears").style.transform=`rotate(${pwState.gears}deg)`;
-  document.getElementById("pwNeedle").style.transform=`rotate(${pwState.needle}deg)`;
+  document.getElementById("pwGears").style.transform=`rotate(${pwState.gears}deg) scale(0.69)`;
+  document.getElementById("pwNeedle").style.transform=`rotate(${pwState.needle}deg) scale(0.46)`;
 }
 
 function playTick(){
