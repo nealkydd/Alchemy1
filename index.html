@@ -1,4 +1,6 @@
 
+
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -506,14 +508,17 @@ input[type="range"]{width:100%;accent-color:var(--theme);}
   will-change:transform;
 }
 .pw-mode{overflow:visible;}
-/* Teal base plate: 72% — sits inside zodiac ring */
-#pwBg{transform:scale(0.72);}
-/* Zodiac ring: full size outer ring */
-#pwZodiac{transform:scale(1.0);}
-/* Gears: 57% — sits inside zodiac hollow */
-#pwGears{transform:scale(0.57);}
-/* Needle: 62% — larger compass star centred */
-#pwNeedle{transform:scale(0.62);}
+/*
+  Transmuter PNG stack.
+  Keep all artwork centred in the same 1:1 wheel box.
+  Fine alignment now lives in PW_LAYER below, so the JS keeps scale/position
+  when the zodiac ring, gears and needle rotate.
+*/
+#pwBg{transform:translate(0%,0%) rotate(0deg) scale(0.72);}
+#pwZodiac{transform:translate(0%,0%) rotate(0deg) scale(1);}
+#pwGears{transform:translate(0%,0%) rotate(0deg) scale(0.57);}
+/* Needle is deliberately smaller and nudged upward into the wheel centre. */
+#pwNeedle{transform:translate(0%,-3%) rotate(0deg) scale(0.42);}
 
 /* RESULT BANNER */
 .result-banner{
@@ -1294,6 +1299,18 @@ let pwDrag=null;
 let _audioCtx=null;
 const TICK_DEG=5, GEAR_Z=-3, GEAR_N=-2;
 
+// Layer calibration for the transparent PNG stack.
+// Tweak these four values only if the artwork changes.
+const PW_LAYER={
+  bg:     {scale:0.72, x:0, y:0},
+  zodiac: {scale:1.00, x:0, y:0},
+  gears:  {scale:0.57, x:0, y:0},
+  needle: {scale:0.42, x:0, y:-3}
+};
+function pwTransform(angle, layer){
+  return `translate(${layer.x}%,${layer.y}%) rotate(${angle}deg) scale(${layer.scale})`;
+}
+
 function buildModeRing(svg){
   const NS="http://www.w3.org/2000/svg";
   const R=418, CX=500, CY=500;
@@ -1343,10 +1360,15 @@ function pwGetRadius(e,el){
 }
 
 function pwApply(){
-  document.getElementById("pwZodiac").style.transform=`rotate(${pwState.zodiac}deg) scale(1.0)`;
+  // Zodiac and mode text move together.
+  document.getElementById("pwZodiac").style.transform=pwTransform(pwState.zodiac,PW_LAYER.zodiac);
   document.getElementById("pwMode").style.transform=`rotate(${pwState.zodiac}deg)`;
-  document.getElementById("pwGears").style.transform=`rotate(${pwState.gears}deg) scale(0.57)`;
-  document.getElementById("pwNeedle").style.transform=`rotate(${pwState.needle}deg) scale(0.62)`;
+
+  // Cogs counter-rotate via pwState.gears.
+  document.getElementById("pwGears").style.transform=pwTransform(pwState.gears,PW_LAYER.gears);
+
+  // Needle sits on top, centred/scaled independently.
+  document.getElementById("pwNeedle").style.transform=pwTransform(pwState.needle,PW_LAYER.needle);
 }
 
 function playTick(){
