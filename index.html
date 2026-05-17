@@ -510,10 +510,10 @@ input[type="range"]{width:100%;accent-color:var(--theme);}
 #pwBg{transform:scale(0.72);}
 /* Zodiac ring: full size outer ring */
 #pwZodiac{transform:scale(1.0);}
-/* Gears: 69% — fills inside of zodiac */
-#pwGears{transform:scale(0.69);}
-/* Needle: 46% — compass star centred over gears */
-#pwNeedle{transform:scale(0.46);}
+/* Gears: 57% — sits inside zodiac hollow */
+#pwGears{transform:scale(0.57);}
+/* Needle: 62% — larger compass star centred */
+#pwNeedle{transform:scale(0.62);}
 
 /* RESULT BANNER */
 .result-banner{
@@ -1146,9 +1146,9 @@ input[type="range"]{width:100%;accent-color:var(--theme);}
         <div class="wheel-shell">
           <div class="photo-wheel" id="photoWheel">
             <img class="pw-layer" id="pwBg"     src="assets/wheel-bg.png"     alt="">
+            <img class="pw-layer" id="pwGears"  src="assets/wheel-gears.png"  alt="">
             <img class="pw-layer" id="pwZodiac" src="assets/wheel-zodiac.png" alt="">
             <svg class="pw-layer pw-mode" id="pwMode" viewBox="0 0 1000 1000" xmlns="http://www.w3.org/2000/svg"></svg>
-            <img class="pw-layer" id="pwGears"  src="assets/wheel-gears.png"  alt="">
             <img class="pw-layer" id="pwNeedle" src="assets/wheel-needle.png" alt="">
           </div>
         </div>
@@ -1296,22 +1296,34 @@ const TICK_DEG=5, GEAR_Z=-3, GEAR_N=-2;
 
 function buildModeRing(svg){
   const NS="http://www.w3.org/2000/svg";
-  const R=455,CX=500,CY=500;
+  const R=418, CX=500, CY=500;
+  // Create defs for arc paths
+  const defs=document.createElementNS(NS,"defs");
+  svg.appendChild(defs);
   WHEEL_MODES.forEach((mode,i)=>{
-    const mid=i*30+15;
-    const rad=(mid-90)*Math.PI/180;
-    const x=CX+R*Math.cos(rad), y=CY+R*Math.sin(rad);
-    const t=document.createElementNS(NS,"text");
-    t.setAttribute("x",x); t.setAttribute("y",y);
-    t.setAttribute("text-anchor","middle");
-    t.setAttribute("dominant-baseline","middle");
-    t.setAttribute("font-size","22");
-    t.setAttribute("font-family","Cinzel,serif");
-    t.setAttribute("fill",MODE_COLOR[mode]);
-    t.setAttribute("letter-spacing","2");
-    t.setAttribute("transform",`rotate(${mid},${x},${y})`);
-    t.textContent=mode;
-    svg.appendChild(t);
+    const startDeg=i*30, endDeg=startDeg+30;
+    const s=(startDeg-90)*Math.PI/180, e=(endDeg-90)*Math.PI/180;
+    const x1=CX+R*Math.cos(s), y1=CY+R*Math.sin(s);
+    const x2=CX+R*Math.cos(e), y2=CY+R*Math.sin(e);
+    const pid=`mp${i}`;
+    const path=document.createElementNS(NS,"path");
+    path.setAttribute("id",pid);
+    path.setAttribute("d",`M${x1},${y1} A${R},${R} 0 0,1 ${x2},${y2}`);
+    path.setAttribute("fill","none");
+    defs.appendChild(path);
+    const text=document.createElementNS(NS,"text");
+    text.setAttribute("font-size","17");
+    text.setAttribute("font-family","Cinzel,serif");
+    text.setAttribute("fill",MODE_COLOR[mode]);
+    text.setAttribute("letter-spacing","3");
+    const tp=document.createElementNS(NS,"textPath");
+    tp.setAttribute("href",`#${pid}`);
+    tp.setAttribute("startOffset","50%");
+    tp.setAttribute("text-anchor","middle");
+    tp.setAttribute("dominant-baseline","middle");
+    tp.textContent=mode;
+    text.appendChild(tp);
+    svg.appendChild(text);
   });
 }
 
@@ -1333,8 +1345,8 @@ function pwGetRadius(e,el){
 function pwApply(){
   document.getElementById("pwZodiac").style.transform=`rotate(${pwState.zodiac}deg) scale(1.0)`;
   document.getElementById("pwMode").style.transform=`rotate(${pwState.zodiac}deg)`;
-  document.getElementById("pwGears").style.transform=`rotate(${pwState.gears}deg) scale(0.69)`;
-  document.getElementById("pwNeedle").style.transform=`rotate(${pwState.needle}deg) scale(0.46)`;
+  document.getElementById("pwGears").style.transform=`rotate(${pwState.gears}deg) scale(0.57)`;
+  document.getElementById("pwNeedle").style.transform=`rotate(${pwState.needle}deg) scale(0.62)`;
 }
 
 function playTick(){
